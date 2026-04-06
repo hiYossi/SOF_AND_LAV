@@ -87,7 +87,7 @@ def load_pgm_vector(filename):
     min_val = vector.min()
     max_val = vector.max()
     if max_val > min_val:
-        vector = (vector - min_val) / (max_val - min_val)
+        vector = ((vector - min_val) / (max_val - min_val))*2 - 1
     else:
         raise ValueError("Image has no variation in pixel values.")
     return vector
