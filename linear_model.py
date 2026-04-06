@@ -34,6 +34,7 @@ VERBOSE = True                     # Print progress info
 MAX_IMAGES = 1000                  # Use 1000 images for the test, None for all ~3600 images
 CACHE_VERSION = 2
 PGM_PATTERN = re.compile(r'(?:.*/)?p(\d+)_i(\d+)(?:\(\d+\))?\.pgm$')
+USE_DEFAULT_MAX_IMAGES = object()
 
 
 # ============================================================================
@@ -209,7 +210,7 @@ def _sample_file_records(records, max_images, rng, verbose, log_prefix):
 # DATASET LOADING
 # ============================================================================
 
-def load_dataset(root_dir, image_size=(64, 64), max_images=None,
+def load_dataset(root_dir, image_size=(64, 64), max_images=USE_DEFAULT_MAX_IMAGES,
                  max_images_per_person=None, cache_path=None, verbose=None,
                  random_seed=RANDOM_SEED, log_prefix="  "):
     """
@@ -222,7 +223,9 @@ def load_dataset(root_dir, image_size=(64, 64), max_images=None,
     Args:
         root_dir (str or Path): Path to dataset root or zip file.
         image_size (tuple or None): Target (height, width), or None to keep original size.
-        max_images (int or None): Optional cap on total images loaded.
+        max_images (int, None, or sentinel): Optional cap on total images loaded.
+            When omitted, the module-level MAX_IMAGES default is used.
+            Pass None explicitly to disable the overall cap.
         max_images_per_person (int or None): Optional per-class cap.
         cache_path (str or Path or None): Optional `.npz` cache to reuse preprocessed arrays.
         verbose (bool or None): Whether to print dataset-loading progress.
@@ -237,7 +240,7 @@ def load_dataset(root_dir, image_size=(64, 64), max_images=None,
     """
     if verbose is None:
         verbose = VERBOSE
-    if max_images is None:
+    if max_images is USE_DEFAULT_MAX_IMAGES:
         max_images = MAX_IMAGES
 
     root_path = Path(root_dir)
