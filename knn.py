@@ -52,7 +52,7 @@ def accuracy(y_true, y_pred):
 
 if __name__ == "__main__":
     person_ids = range(28)
-    X, y = load_dataset(person_ids, max_images_per_person=100)
+    X, y = load_dataset(person_ids, max_images_per_person=300)
 
     print("X shape:", X.shape)
     print("y shape:", y.shape)
