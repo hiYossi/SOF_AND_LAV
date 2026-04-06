@@ -1,4 +1,6 @@
 __pycache__/
+.cache/
+.idea/
 *.py[cod]
-*_cache.npz
-linear_model/*_cache.npz
+*.npz
+~$*.docx
