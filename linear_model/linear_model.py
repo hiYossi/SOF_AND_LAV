@@ -661,6 +661,7 @@ def main():
     print(f"\n  Confusion matrix (test set):")
     print(f"  {cm}")
     
+
     # -------- Optional: Baseline --------
     print("\n[6] Baseline: Nearest class mean in PCA space...")
     class_means = compute_class_means(Z_train, y_train, num_classes)
