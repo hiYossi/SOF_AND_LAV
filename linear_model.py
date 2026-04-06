@@ -14,7 +14,8 @@ Pipeline:
 Uses NumPy only for linear algebra and machine learning.
 """
 
-import os
+import re
+import zipfile
 import numpy as np
 from pathlib import Path
 
@@ -23,18 +24,38 @@ from pathlib import Path
 # CONFIGURATION
 # ============================================================================
 
-DATASET_PATH = "Train Set (Labeled)-20260405T164823Z-3-001.zip"
+DATASET_PATH = Path(__file__).with_name("Train Set (Labeled)-20260405T164823Z-3-001.zip")
+CACHE_PATH = Path(__file__).with_name("linear_model_cache.npz")
 IMAGE_SIZE = (64, 64)              # (height, width) — full resolution
 N_COMPONENTS = 20                  # Use 20 for fast testing, 50 for final accuracy
 TEST_RATIO = 0.2                   # Hold out 20% for testing
 RANDOM_SEED = 42                   # For reproducibility
 VERBOSE = True                     # Print progress info
 MAX_IMAGES = 1000                  # Use 1000 images for the test, None for all ~3600 images
+CACHE_VERSION = 2
+PGM_PATTERN = re.compile(r'(?:.*/)?p(\d+)_i(\d+)(?:\(\d+\))?\.pgm$')
 
 
 # ============================================================================
 # IMAGE LOADING AND PREPROCESSING
 # ============================================================================
+
+def _read_pgm(file_obj):
+    """Read a binary PGM image from an already-open file object."""
+    magic = file_obj.readline().strip()
+    if magic != b'P5':
+        raise ValueError("Not a valid P5 PGM file")
+
+    line = file_obj.readline()
+    while line.strip().startswith(b'#'):
+        line = file_obj.readline()
+
+    width, height = map(int, line.split())
+    maxval = int(file_obj.readline().strip())
+    dtype = np.uint8 if maxval < 256 else np.uint16
+    data = np.frombuffer(file_obj.read(), dtype=dtype)
+    return data.reshape((height, width))
+
 
 def load_pgm_simple(filename):
     """
@@ -46,54 +67,24 @@ def load_pgm_simple(filename):
     Returns:
         ndarray: 2D grayscale image (height, width).
     """
-    import zipfile
-    
+    filename = str(filename)
+
     if '.zip' in filename:
         zip_path, internal_path = filename.split('.zip', 1)
         zip_path += '.zip'
-        internal_path = internal_path.lstrip('/')
+        internal_path = internal_path.lstrip('/\\')
         with zipfile.ZipFile(zip_path, 'r') as zf:
             with zf.open(internal_path) as f:
-                magic = f.readline().strip()
-                if magic != b'P5':
-                    raise ValueError("Not a valid P5 PGM file")
-                
-                while True:
-                    pos = f.tell()
-                    line = f.readline().strip()
-                    if not line.startswith(b'#'):
-                        f.seek(pos)
-                        break
-                
-                line = f.readline().strip()
-                width, height = map(int, line.split())
-                maxval = int(f.readline().strip())
-                
-                dtype = np.uint8 if maxval < 256 else np.uint16
-                data = np.frombuffer(f.read(), dtype=dtype)
-                image = data.reshape((height, width))
-                return image
-    else:
-        with open(filename, 'rb') as f:
-            magic = f.readline().strip()
-            if magic != b'P5':
-                raise ValueError("Not a valid P5 PGM file")
-            
-            while True:
-                pos = f.tell()
-                line = f.readline().strip()
-                if not line.startswith(b'#'):
-                    f.seek(pos)
-                    break
-            
-            line = f.readline().strip()
-            width, height = map(int, line.split())
-            maxval = int(f.readline().strip())
-            
-            dtype = np.uint8 if maxval < 256 else np.uint16
-            data = np.frombuffer(f.read(), dtype=dtype)
-            image = data.reshape((height, width))
-            return image
+                return _read_pgm(f)
+
+    with open(filename, 'rb') as f:
+        return _read_pgm(f)
+
+
+def load_pgm_from_zip(zip_file, internal_path):
+    """Load a PGM image from an already-open ZipFile handle."""
+    with zip_file.open(internal_path) as f:
+        return _read_pgm(f)
 
 
 def preprocess_image(image, target_size=(64, 64)):
@@ -108,16 +99,19 @@ def preprocess_image(image, target_size=(64, 64)):
     Returns:
         ndarray: Preprocessed image, dtype float32, range [0, 1].
     """
-    h, w = image.shape
-    target_h, target_w = target_size
-    
-    # Nearest-neighbor resize: map each output pixel to nearest input pixel
-    rows = np.floor(np.arange(target_h) * h / target_h).astype(int)
-    cols = np.floor(np.arange(target_w) * w / target_w).astype(int)
-    rows = np.clip(rows, 0, h - 1)
-    cols = np.clip(cols, 0, w - 1)
-    
-    resized = image[np.ix_(rows, cols)]
+    if target_size is None or tuple(target_size) == image.shape:
+        resized = image.astype(np.float32)
+    else:
+        h, w = image.shape
+        target_h, target_w = target_size
+        
+        # Nearest-neighbor resize: map each output pixel to nearest input pixel
+        rows = np.floor(np.arange(target_h) * h / target_h).astype(int)
+        cols = np.floor(np.arange(target_w) * w / target_w).astype(int)
+        rows = np.clip(rows, 0, h - 1)
+        cols = np.clip(cols, 0, w - 1)
+        
+        resized = image[np.ix_(rows, cols)].astype(np.float32)
     
     # Normalize to [0, 1]
     if resized.max() > resized.min():
@@ -128,11 +122,96 @@ def preprocess_image(image, target_size=(64, 64)):
     return normalized.astype(np.float32)
 
 
+def build_dataset_cache_key(root_dir, image_size, max_images, max_images_per_person,
+                            random_seed):
+    """Fingerprint dataset-loading inputs so cached arrays stay in sync."""
+    root_path = Path(root_dir)
+    resolved = root_path.resolve()
+    if root_path.exists():
+        stat = root_path.stat()
+        size = stat.st_size if root_path.is_file() else 0
+        mtime = int(stat.st_mtime)
+    else:
+        size = 0
+        mtime = 0
+
+    size_key = "original" if image_size is None else f"{image_size[0]}x{image_size[1]}"
+    return (
+        f"{resolved}|{size}|{mtime}|{size_key}|{max_images}|"
+        f"{max_images_per_person}|{random_seed}|v{CACHE_VERSION}"
+    )
+
+
+def load_cached_dataset(cache_path, cache_key, verbose=True, log_prefix="  "):
+    """Load a cached preprocessed dataset when the inputs still match."""
+    if cache_path is None:
+        return None
+
+    cache_path = Path(cache_path)
+    if not cache_path.exists():
+        return None
+
+    try:
+        with np.load(cache_path, allow_pickle=False) as data:
+            cached_key = str(data["cache_key"][0])
+            if cached_key != cache_key:
+                return None
+
+            label_ids = data["label_ids"].astype(np.int32)
+            label_names = data["label_names"]
+            label_to_name = {int(idx): str(name) for idx, name in zip(label_ids, label_names)}
+            image_paths = [str(path) for path in data["image_paths"].tolist()]
+
+            if verbose:
+                print(f"{log_prefix}Loaded dataset cache from {cache_path.name}")
+
+            return data["X"], data["y"], label_to_name, image_paths
+    except Exception as e:
+        if verbose:
+            print(f"{log_prefix}Ignoring stale dataset cache: {e}")
+        return None
+
+
+def save_cached_dataset(cache_path, cache_key, X, y, label_to_name, image_paths):
+    """Persist preprocessed dataset arrays for faster repeat runs."""
+    if cache_path is None:
+        return
+
+    cache_path = Path(cache_path)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    label_ids = np.array(sorted(label_to_name.keys()), dtype=np.int32)
+    label_names = np.array([label_to_name[idx] for idx in label_ids])
+
+    np.savez(
+        cache_path,
+        cache_key=np.array([cache_key]),
+        X=X,
+        y=y,
+        label_ids=label_ids,
+        label_names=label_names,
+        image_paths=np.array(image_paths),
+    )
+
+
+def _sample_file_records(records, max_images, rng, verbose, log_prefix):
+    """Randomly sample file records when an overall cap is requested."""
+    if max_images is None or len(records) <= max_images:
+        return records
+
+    chosen = rng.choice(len(records), size=max_images, replace=False)
+    sampled = [records[i] for i in chosen]
+    if verbose:
+        print(f"{log_prefix}Sampling {len(sampled)} random files from {len(records)} available")
+    return sampled
+
+
 # ============================================================================
 # DATASET LOADING
 # ============================================================================
 
-def load_dataset(root_dir, image_size=(64, 64)):
+def load_dataset(root_dir, image_size=(64, 64), max_images=None,
+                 max_images_per_person=None, cache_path=None, verbose=None,
+                 random_seed=RANDOM_SEED, log_prefix="  "):
     """
     Load labeled dataset from folder structure or flat zip with filenames p{id}_i{img}.pgm
     
@@ -141,8 +220,14 @@ def load_dataset(root_dir, image_size=(64, 64)):
     2. Flat zip: files named p{person_id}_i{image_id}.pgm
     
     Args:
-        root_dir (str): Path to dataset root or zip file.
-        image_size (tuple): Target (height, width).
+        root_dir (str or Path): Path to dataset root or zip file.
+        image_size (tuple or None): Target (height, width), or None to keep original size.
+        max_images (int or None): Optional cap on total images loaded.
+        max_images_per_person (int or None): Optional per-class cap.
+        cache_path (str or Path or None): Optional `.npz` cache to reuse preprocessed arrays.
+        verbose (bool or None): Whether to print dataset-loading progress.
+        random_seed (int): Random seed for reproducible sampling.
+        log_prefix (str): Prefix for progress messages.
     
     Returns:
         X (ndarray): Shape (n_samples, height*width), images flattened.
@@ -150,152 +235,167 @@ def load_dataset(root_dir, image_size=(64, 64)):
         label_to_name (dict): Mapping from class index to label.
         image_paths (list): Original file paths for reference.
     """
-    import zipfile
-    import re
-    
+    if verbose is None:
+        verbose = VERBOSE
+    if max_images is None:
+        max_images = MAX_IMAGES
+
+    root_path = Path(root_dir)
+    cache_key = build_dataset_cache_key(
+        root_path,
+        image_size=image_size,
+        max_images=max_images,
+        max_images_per_person=max_images_per_person,
+        random_seed=random_seed,
+    )
+    cached = load_cached_dataset(cache_path, cache_key, verbose=verbose,
+                                 log_prefix=log_prefix)
+    if cached is not None:
+        return cached
+
     X_list = []
     y_list = []
     label_to_name = {}
     image_paths = []
-    
-    person_to_idx = {}  # Map person IDs to class indices
-    class_idx = 0
-    rng = np.random.default_rng(RANDOM_SEED)
+    rng = np.random.default_rng(random_seed)
 
-    if '.zip' in root_dir:
-        # Load from zip
-        zip_name = root_dir
-        with zipfile.ZipFile(zip_name, 'r') as zf:
+    if root_path.suffix.lower() == '.zip':
+        with zipfile.ZipFile(root_path, 'r') as zf:
             files = [f for f in zf.namelist() if f.endswith('.pgm')]
-            
+
             if not files:
-                raise ValueError(f"No PGM files found in {zip_name}")
-            
-            if MAX_IMAGES is not None and len(files) > MAX_IMAGES:
-                chosen = rng.choice(len(files), size=MAX_IMAGES, replace=False)
-                files = [files[i] for i in chosen]
-                if VERBOSE:
-                    print(f"  Sampling {len(files)} random files from {len(zf.namelist())} available")
-            
-            # Try to extract person IDs from filenames (p{id}_i{img}.pgm format)
-            person_ids = set()
-            for f in files:
-                fname = f.split('/')[-1]
-                match = re.match(r'p(\d+)_i(\d+)\.pgm', fname)
-                if match:
-                    person_ids.add(int(match.group(1)))
-            
-            # If we found person IDs in filenames, use them as classes
-            if person_ids:
-                if VERBOSE:
-                    print(f"  Found {len(person_ids)} unique persons in filenames")
-                
-                for pid in sorted(person_ids):
-                    person_to_idx[pid] = class_idx
-                    label_to_name[class_idx] = f"person_{pid}"
-                    class_idx += 1
+                raise ValueError(f"No PGM files found in {root_path}")
+
+            if max_images_per_person is None:
+                files = _sample_file_records(files, max_images, rng, verbose, log_prefix)
+
+            matched_person_ids = sorted({
+                int(match.group(1))
+                for match in (PGM_PATTERN.match(f) for f in files)
+                if match
+            })
+
+            if matched_person_ids:
+                if verbose:
+                    print(f"{log_prefix}Found {len(matched_person_ids)} unique persons in filenames")
+                class_lookup = {pid: idx for idx, pid in enumerate(matched_person_ids)}
+                label_to_name = {idx: f"person_{pid}" for pid, idx in class_lookup.items()}
             else:
-                # Fall back: use first-level directory as class
-                if VERBOSE:
-                    print(f"  Using directory structure for classes")
-                dirs = set()
-                for f in files:
-                    parts = f.split('/')
-                    if len(parts) > 1:
-                        dirs.add(parts[0])
-                
-                for dir_name in sorted(dirs):
-                    label_to_name[class_idx] = dir_name
-                    class_idx += 1
-            
-            # Load images
+                if verbose:
+                    print(f"{log_prefix}Using directory structure for classes")
+                class_names = sorted({
+                    parts[0]
+                    for parts in (f.split('/') for f in files)
+                    if len(parts) > 1
+                })
+                label_to_name = {idx: name for idx, name in enumerate(class_names)}
+                class_lookup = {name: idx for idx, name in label_to_name.items()}
+
+            person_counts = {}
+            filled_classes = 0
+            total_classes = len(label_to_name)
+
             for pgm_file in files:
                 try:
-                    fname = pgm_file.split('/')[-1]
-                    match = re.match(r'p(\d+)_i(\d+)\.pgm', fname)
-                    
-                    if match and person_to_idx:
-                        # Use filename-based person ID
-                        person_id = int(match.group(1))
-                        class_label = person_to_idx[person_id]
+                    match = PGM_PATTERN.match(pgm_file)
+                    if match and matched_person_ids:
+                        class_label = class_lookup[int(match.group(1))]
                     else:
-                        # Use directory-based classification
                         parts = pgm_file.split('/')
-                        if len(parts) > 1:
-                            dir_name = parts[0]
-                            # Find class index for this directory
-                            class_label = None
-                            for idx, name in label_to_name.items():
-                                if name == dir_name:
-                                    class_label = idx
-                                    break
-                            if class_label is None:
-                                if VERBOSE:
-                                    print(f"  Warning: Could not find class for {pgm_file}")
-                                continue
-                        else:
+                        if len(parts) <= 1:
                             continue
-                    
-                    # Load and preprocess image
-                    img = load_pgm_simple(f"{zip_name}/{pgm_file}")
+                        class_label = class_lookup.get(parts[0])
+                        if class_label is None:
+                            if verbose:
+                                print(f"{log_prefix}Warning: Could not find class for {pgm_file}")
+                            continue
+
+                    if max_images_per_person is not None and person_counts.get(class_label, 0) >= max_images_per_person:
+                        continue
+                    if max_images is not None and max_images_per_person is not None and len(X_list) >= max_images:
+                        break
+
+                    img = load_pgm_from_zip(zf, pgm_file)
                     img_preprocessed = preprocess_image(img, target_size=image_size)
-                    img_vector = img_preprocessed.flatten()
-                    
-                    X_list.append(img_vector)
+
+                    X_list.append(img_preprocessed.flatten())
                     y_list.append(class_label)
-                    image_paths.append(pgm_file)
-                    
-                    if VERBOSE and len(X_list) % 100 == 0:
-                        print(f"  Loaded {len(X_list)} images...")
+                    image_paths.append(f"{root_path}/{pgm_file}")
+                    person_counts[class_label] = person_counts.get(class_label, 0) + 1
+
+                    if max_images_per_person is not None and person_counts[class_label] == max_images_per_person:
+                        filled_classes += 1
+                        if filled_classes == total_classes:
+                            break
+
+                    if verbose and len(X_list) % 100 == 0:
+                        print(f"{log_prefix}Loaded {len(X_list)} images...")
                 except Exception as e:
-                    if VERBOSE:
-                        print(f"  Warning: Could not load {pgm_file}: {e}")
+                    if verbose:
+                        print(f"{log_prefix}Warning: Could not load {pgm_file}: {e}")
                     continue
     else:
-        # Load from filesystem
-        dataset_path = Path(root_dir)
         all_files = []
-        for class_folder in sorted(dataset_path.iterdir()):
+        for class_folder in sorted(root_path.iterdir()):
             if not class_folder.is_dir():
                 continue
-            
+
             for img_file in sorted(class_folder.glob('*.pgm')):
                 all_files.append((class_folder.name, img_file))
-        
+
         if not all_files:
-            raise ValueError(f"No images found in {root_dir}")
-        
-        if MAX_IMAGES is not None and len(all_files) > MAX_IMAGES:
-            chosen = rng.choice(len(all_files), size=MAX_IMAGES, replace=False)
-            all_files = [all_files[i] for i in chosen]
-            if VERBOSE:
-                print(f"  Sampling {len(all_files)} random files from {len(list(dataset_path.rglob('*.pgm')))} available")
-        
+            raise ValueError(f"No images found in {root_path}")
+
+        if max_images_per_person is None:
+            all_files = _sample_file_records(all_files, max_images, rng, verbose, log_prefix)
+
+        class_names = sorted({class_name for class_name, _ in all_files})
+        label_to_name = {idx: name for idx, name in enumerate(class_names)}
+        name_to_idx = {name: idx for idx, name in label_to_name.items()}
+
+        person_counts = {}
+        filled_classes = 0
+        total_classes = len(label_to_name)
+
         for class_name, img_file in all_files:
             try:
-                if class_name not in label_to_name.values():
-                    label_to_name[class_idx] = class_name
-                    class_idx += 1
-                class_label = [k for k, v in label_to_name.items() if v == class_name][0]
-                
+                class_label = name_to_idx[class_name]
+
+                if max_images_per_person is not None and person_counts.get(class_label, 0) >= max_images_per_person:
+                    continue
+                if max_images is not None and max_images_per_person is not None and len(X_list) >= max_images:
+                    break
+
                 img = load_pgm_simple(str(img_file))
                 img_preprocessed = preprocess_image(img, target_size=image_size)
-                img_vector = img_preprocessed.flatten()
-                
-                X_list.append(img_vector)
+
+                X_list.append(img_preprocessed.flatten())
                 y_list.append(class_label)
                 image_paths.append(str(img_file))
+                person_counts[class_label] = person_counts.get(class_label, 0) + 1
+
+                if max_images_per_person is not None and person_counts[class_label] == max_images_per_person:
+                    filled_classes += 1
+                    if filled_classes == total_classes:
+                        break
+
+                if verbose and len(X_list) % 100 == 0:
+                    print(f"{log_prefix}Loaded {len(X_list)} images...")
             except Exception as e:
-                if VERBOSE:
-                    print(f"  Warning: Could not load {img_file}: {e}")
+                if verbose:
+                    print(f"{log_prefix}Warning: Could not load {img_file}: {e}")
                 continue
-    
+
     if not X_list:
-        raise ValueError(f"No images found in {root_dir}")
-    
+        raise ValueError(f"No images found in {root_path}")
+
     X = np.array(X_list, dtype=np.float32)  # Shape: (n_samples, n_features)
     y = np.array(y_list, dtype=np.int32)    # Shape: (n_samples,)
-    
+
+    save_cached_dataset(cache_path, cache_key, X, y, label_to_name, image_paths)
+    if verbose and cache_path is not None:
+        print(f"{log_prefix}Saved dataset cache to {Path(cache_path).name}")
+
     return X, y, label_to_name, image_paths
 
 
@@ -606,7 +706,14 @@ def main():
     # -------- Load Dataset --------
     print("\n[1] Loading dataset...")
     try:
-        X, y, label_to_name, image_paths = load_dataset(DATASET_PATH, IMAGE_SIZE)
+        X, y, label_to_name, image_paths = load_dataset(
+            DATASET_PATH,
+            IMAGE_SIZE,
+            max_images=MAX_IMAGES,
+            cache_path=CACHE_PATH,
+            verbose=VERBOSE,
+            random_seed=RANDOM_SEED,
+        )
     except Exception as e:
         print(f"Error loading dataset: {e}")
         return
@@ -671,7 +778,7 @@ def main():
     
     # -------- Optional: Single Image Prediction --------
     print("\n[7] Testing single image prediction...")
-    idx_to_label = {v: k for k, v in label_to_name.items()}
+    idx_to_label = dict(label_to_name)
     
     # Test on first test image
     if len(image_paths) > 0:
@@ -679,7 +786,7 @@ def main():
         try:
             pred_label, pred_scores = predict_single_image(
                 test_image_path, IMAGE_SIZE, mean_face, components, W, idx_to_label)
-            true_label = idx_to_label[y[0]]
+            true_label = label_to_name[y[0]]
             print(f"  Test image: {test_image_path}")
             print(f"  True label: {true_label}")
             print(f"  Predicted label: {pred_label}")

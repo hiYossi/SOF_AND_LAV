@@ -2,13 +2,14 @@
 
 ## What Was Built
 
-A complete **face recognition system in pure Python using NumPy only** for machine learning. The project implements:
+A complete face recognition project with multiple baselines. The project implements:
 
 - **PCA (Eigenfaces)**: Dimensionality reduction via SVD
 - **Linear Least Squares Classifier**: Multiclass classification in PCA space
+- **PyTorch CNN**: Neural-network baseline for face recognition
 - **Complete pipeline**: Load → Preprocess → Train → Evaluate → Predict
 
-**No dependencies besides NumPy!**
+The original linear baseline uses only NumPy. The PyTorch CNN requires `torch`.
 
 ---
 
@@ -17,6 +18,7 @@ A complete **face recognition system in pure Python using NumPy only** for machi
 | File | Purpose |
 |------|---------|
 | `linear_model.py` | Main implementation (700+ lines, fully documented) |
+| `pytorch_model/torch_face_recognition.py` | Improved PyTorch CNN with validation split and augmentation |
 | `FACE_RECOGNITION_GUIDE.md` | Detailed guide & mathematical background |
 | `quick_start.py` | Fast demo with smaller dataset |
 | `README.md` | This file |
@@ -63,6 +65,34 @@ For instant results with a subset:
 python quick_start.py
 ```
 (Loads only first 500 images, runs in ~1 minute)
+
+### 4. Run the PyTorch Neural Network
+Install PyTorch first:
+```bash
+pip install torch
+```
+
+Then run the CNN baseline:
+```bash
+python pytorch_model/torch_face_recognition.py
+```
+
+On machines where `python` points to an older interpreter, use Python 3.11 explicitly:
+```bash
+py -3.11 pytorch_model/torch_face_recognition.py
+```
+
+This uses the original resolution and all available images by default.
+
+The improved PyTorch pipeline now uses:
+- stratified train/validation/test splits
+- light training augmentation
+- validation-based checkpointing instead of choosing on the test set
+
+If you want to run a smaller experiment explicitly:
+```bash
+python pytorch_model/torch_face_recognition.py --max-images-per-person 16 --epochs 12 --batch-size 64
+```
 
 ---
 

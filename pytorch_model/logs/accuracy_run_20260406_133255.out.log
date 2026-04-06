@@ -1,0 +1,140 @@
+======================================================================
+FACE RECOGNITION: IMPROVED PYTORCH CNN
+======================================================================
+
+[1] Loading dataset...
+  Loaded 100 images...
+  Loaded 200 images...
+  Loaded 300 images...
+  Loaded 400 images...
+  Loaded 500 images...
+  Loaded 600 images...
+  Loaded 700 images...
+  Loaded 800 images...
+  Loaded 900 images...
+  Loaded 1000 images...
+  Loaded 1100 images...
+  Loaded 1200 images...
+  Loaded 1300 images...
+  Loaded 1400 images...
+  Loaded 1500 images...
+  Loaded 1600 images...
+  Loaded 1700 images...
+  Loaded 1800 images...
+  Loaded 1900 images...
+  Loaded 2000 images...
+  Loaded 2100 images...
+  Loaded 2200 images...
+  Loaded 2300 images...
+  Loaded 2400 images...
+  Loaded 2500 images...
+  Loaded 2600 images...
+  Loaded samples: 2688
+  Classes: 28
+  Image tensor shape: (1, 64, 72)
+  Image size mode: original resolution
+  Max images per person: 96
+  Load time: 1.0s
+
+[2] Creating stratified train/validation/test split...
+  Train samples: 1876
+  Validation samples: 280
+  Test samples: 532
+  First train path: Train Set (Labeled)/p18_i170.pgm
+
+[3] Using device: cpu
+  Train normalization mean/std: 0.2094 / 0.2485
+
+[4] Building model...
+BetterFaceCNN(
+  (features): Sequential(
+    (0): ConvBlock(
+      (block): Sequential(
+        (0): Conv2d(1, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (2): ReLU(inplace=True)
+        (3): Conv2d(32, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (4): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (5): ReLU(inplace=True)
+        (6): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        (7): Dropout2d(p=0.05, inplace=False)
+      )
+    )
+    (1): ConvBlock(
+      (block): Sequential(
+        (0): Conv2d(32, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (2): ReLU(inplace=True)
+        (3): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (4): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (5): ReLU(inplace=True)
+        (6): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        (7): Dropout2d(p=0.08, inplace=False)
+      )
+    )
+    (2): ConvBlock(
+      (block): Sequential(
+        (0): Conv2d(64, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (1): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (2): ReLU(inplace=True)
+        (3): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (4): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (5): ReLU(inplace=True)
+        (6): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        (7): Dropout2d(p=0.12, inplace=False)
+      )
+    )
+  )
+  (classifier): Sequential(
+    (0): AdaptiveAvgPool2d(output_size=(4, 4))
+    (1): Flatten(start_dim=1, end_dim=-1)
+    (2): Linear(in_features=2048, out_features=256, bias=True)
+    (3): BatchNorm1d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (4): ReLU(inplace=True)
+    (5): Dropout(p=0.35, inplace=False)
+    (6): Linear(in_features=256, out_features=28, bias=True)
+  )
+)
+
+[5] Training...
+  Epoch 01/20 | lr=0.000300 | train_loss=3.1864 | train_acc=0.106 | val_loss=3.2134 | val_acc=0.107
+  Epoch 02/20 | lr=0.000300 | train_loss=2.7390 | train_acc=0.245 | val_loss=2.5252 | val_acc=0.371
+  Epoch 03/20 | lr=0.000300 | train_loss=2.4441 | train_acc=0.345 | val_loss=2.1739 | val_acc=0.439
+  Epoch 04/20 | lr=0.000300 | train_loss=2.1990 | train_acc=0.435 | val_loss=1.9550 | val_acc=0.507
+  Epoch 05/20 | lr=0.000300 | train_loss=2.0001 | train_acc=0.506 | val_loss=1.8048 | val_acc=0.575
+  Epoch 06/20 | lr=0.000300 | train_loss=1.8221 | train_acc=0.564 | val_loss=1.5956 | val_acc=0.664
+  Epoch 07/20 | lr=0.000300 | train_loss=1.6601 | train_acc=0.609 | val_loss=1.3685 | val_acc=0.714
+  Epoch 08/20 | lr=0.000300 | train_loss=1.5015 | train_acc=0.656 | val_loss=1.2374 | val_acc=0.768
+  Epoch 09/20 | lr=0.000300 | train_loss=1.3261 | train_acc=0.722 | val_loss=1.1051 | val_acc=0.800
+  Epoch 10/20 | lr=0.000300 | train_loss=1.2022 | train_acc=0.763 | val_loss=1.0204 | val_acc=0.782
+  Epoch 11/20 | lr=0.000300 | train_loss=1.1132 | train_acc=0.773 | val_loss=0.8892 | val_acc=0.857
+  Epoch 12/20 | lr=0.000300 | train_loss=1.0127 | train_acc=0.804 | val_loss=0.7678 | val_acc=0.864
+  Epoch 13/20 | lr=0.000300 | train_loss=0.9105 | train_acc=0.825 | val_loss=0.6940 | val_acc=0.893
+  Epoch 14/20 | lr=0.000300 | train_loss=0.8167 | train_acc=0.845 | val_loss=0.7212 | val_acc=0.839
+  Epoch 15/20 | lr=0.000300 | train_loss=0.7361 | train_acc=0.864 | val_loss=0.5705 | val_acc=0.914
+  Epoch 16/20 | lr=0.000300 | train_loss=0.6575 | train_acc=0.882 | val_loss=0.5413 | val_acc=0.904
+  Epoch 17/20 | lr=0.000300 | train_loss=0.6080 | train_acc=0.888 | val_loss=0.5092 | val_acc=0.925
+  Epoch 18/20 | lr=0.000300 | train_loss=0.5497 | train_acc=0.906 | val_loss=0.5031 | val_acc=0.907
+  Epoch 19/20 | lr=0.000300 | train_loss=0.4943 | train_acc=0.913 | val_loss=0.4640 | val_acc=0.914
+  Epoch 20/20 | lr=0.000300 | train_loss=0.4648 | train_acc=0.918 | val_loss=0.4350 | val_acc=0.904
+
+[6] Final metrics...
+  Train loss: 0.2602
+  Train accuracy: 0.969
+  Validation loss: 0.5092
+  Validation accuracy: 0.925
+  Test loss: 0.6187
+  Test accuracy: 0.880
+  Best validation accuracy: 0.925 (epoch 17)
+  Training time: 706.9s
+
+[7] Sample predictions...
+  OK   Train Set (Labeled)/p18_i432.pgm | true=person_18 | pred=person_18 | conf=0.667
+  OK   Train Set (Labeled)/p16_i385.pgm | true=person_16 | pred=person_16 | conf=0.823
+  OK   Train Set (Labeled)/p25_i264.pgm | true=person_25 | pred=person_25 | conf=0.802
+  OK   Train Set (Labeled)/p5_i536.pgm | true=person_5 | pred=person_5 | conf=0.597
+  OK   Train Set (Labeled)/p7_i100.pgm | true=person_7 | pred=person_7 | conf=0.724
+
+======================================================================
+DONE
+======================================================================

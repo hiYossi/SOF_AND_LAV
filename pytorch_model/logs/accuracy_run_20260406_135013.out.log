@@ -1,0 +1,141 @@
+======================================================================
+FACE RECOGNITION: IMPROVED PYTORCH CNN
+======================================================================
+
+[1] Loading dataset...
+  Loaded 100 images...
+  Loaded 200 images...
+  Loaded 300 images...
+  Loaded 400 images...
+  Loaded 500 images...
+  Loaded 600 images...
+  Loaded 700 images...
+  Loaded 800 images...
+  Loaded 900 images...
+  Loaded 1000 images...
+  Loaded 1100 images...
+  Loaded 1200 images...
+  Loaded 1300 images...
+  Loaded 1400 images...
+  Loaded 1500 images...
+  Loaded 1600 images...
+  Loaded 1700 images...
+  Loaded 1800 images...
+  Loaded 1900 images...
+  Loaded 2000 images...
+  Loaded 2100 images...
+  Loaded 2200 images...
+  Loaded 2300 images...
+  Loaded 2400 images...
+  Loaded 2500 images...
+  Loaded 2600 images...
+  Loaded 2700 images...
+  Loaded 2800 images...
+  Loaded 2900 images...
+  Loaded 3000 images...
+  Loaded 3100 images...
+  Loaded 3200 images...
+  Loaded 3300 images...
+  Loaded 3400 images...
+  Loaded 3500 images...
+  Loaded samples: 3584
+  Classes: 28
+  Image tensor shape: (1, 64, 72)
+  Image size mode: original resolution
+  Max images per person: 128
+  Load time: 0.9s
+
+[2] Creating stratified train/validation/test split...
+  Train samples: 2492
+  Validation samples: 364
+  Test samples: 728
+  First train path: Train Set (Labeled)/p9_i444.pgm
+
+[3] Using device: cpu
+  Train normalization mean/std: 0.2118 / 0.2499
+
+[4] Building model...
+BetterFaceCNN(
+  (features): Sequential(
+    (0): ConvBlock(
+      (block): Sequential(
+        (0): Conv2d(1, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (2): ReLU(inplace=True)
+        (3): Conv2d(32, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (4): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (5): ReLU(inplace=True)
+        (6): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        (7): Dropout2d(p=0.05, inplace=False)
+      )
+    )
+    (1): ConvBlock(
+      (block): Sequential(
+        (0): Conv2d(32, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (2): ReLU(inplace=True)
+        (3): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (4): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (5): ReLU(inplace=True)
+        (6): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        (7): Dropout2d(p=0.08, inplace=False)
+      )
+    )
+    (2): ConvBlock(
+      (block): Sequential(
+        (0): Conv2d(64, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (1): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (2): ReLU(inplace=True)
+        (3): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (4): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (5): ReLU(inplace=True)
+        (6): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        (7): Dropout2d(p=0.12, inplace=False)
+      )
+    )
+  )
+  (classifier): Sequential(
+    (0): AdaptiveAvgPool2d(output_size=(4, 4))
+    (1): Flatten(start_dim=1, end_dim=-1)
+    (2): Linear(in_features=2048, out_features=256, bias=True)
+    (3): BatchNorm1d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (4): ReLU(inplace=True)
+    (5): Dropout(p=0.35, inplace=False)
+    (6): Linear(in_features=256, out_features=28, bias=True)
+  )
+)
+
+[5] Training...
+  Epoch 01/12 | lr=0.000300 | train_loss=3.1097 | train_acc=0.126 | val_loss=2.8907 | val_acc=0.223
+  Epoch 02/12 | lr=0.000300 | train_loss=2.6328 | train_acc=0.286 | val_loss=2.4510 | val_acc=0.363
+  Epoch 03/12 | lr=0.000300 | train_loss=2.2618 | train_acc=0.420 | val_loss=2.0456 | val_acc=0.547
+  Epoch 04/12 | lr=0.000300 | train_loss=1.9991 | train_acc=0.502 | val_loss=1.7738 | val_acc=0.613
+  Epoch 05/12 | lr=0.000300 | train_loss=1.7563 | train_acc=0.589 | val_loss=1.5963 | val_acc=0.640
+  Epoch 06/12 | lr=0.000300 | train_loss=1.5411 | train_acc=0.648 | val_loss=1.3360 | val_acc=0.709
+  Epoch 07/12 | lr=0.000300 | train_loss=1.3537 | train_acc=0.704 | val_loss=1.1576 | val_acc=0.750
+  Epoch 08/12 | lr=0.000300 | train_loss=1.1949 | train_acc=0.760 | val_loss=0.9451 | val_acc=0.808
+  Epoch 09/12 | lr=0.000300 | train_loss=1.0576 | train_acc=0.780 | val_loss=0.9938 | val_acc=0.786
+  Epoch 10/12 | lr=0.000300 | train_loss=0.9441 | train_acc=0.803 | val_loss=0.7883 | val_acc=0.832
+  Epoch 11/12 | lr=0.000300 | train_loss=0.8526 | train_acc=0.832 | val_loss=0.7189 | val_acc=0.854
+  Epoch 12/12 | lr=0.000300 | train_loss=0.7625 | train_acc=0.843 | val_loss=0.6057 | val_acc=0.874
+
+[6] Final metrics...
+  Train loss: 0.3774
+  Train accuracy: 0.947
+  Validation loss: 0.6057
+  Validation accuracy: 0.874
+  Test loss: 0.5674
+  Test accuracy: 0.896
+  Best validation accuracy: 0.874 (epoch 12)
+  Training time: 514.3s
+
+[7] Sample predictions...
+  OK   Train Set (Labeled)/p13_i258.pgm | true=person_13 | pred=person_13 | conf=0.297
+  OK   Train Set (Labeled)/p2_i123.pgm | true=person_2 | pred=person_2 | conf=0.995
+  OK   Train Set (Labeled)/p19_i538.pgm | true=person_19 | pred=person_19 | conf=0.949
+  OK   Train Set (Labeled)/p21_i299.pgm | true=person_21 | pred=person_21 | conf=0.863
+  OK   Train Set (Labeled)/p6_i473.pgm | true=person_6 | pred=person_6 | conf=0.974
+
+======================================================================
+DONE
+======================================================================
