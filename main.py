@@ -81,6 +81,17 @@ def load_pgm(filename):
             
             return image
 
+def load_pgm_vector(filename):
+    img = load_pgm(filename)
+    vector = img.flatten().astype(np.float32)
+    min_val = vector.min()
+    max_val = vector.max()
+    if max_val > min_val:
+        vector = (vector - min_val) / (max_val - min_val)
+    else:
+        raise ValueError("Image has no variation in pixel values.")
+    return vector
+
 def get_file(p_num, i_num):
     """
     Get the file path for a specific person and image number from the train set zip.
