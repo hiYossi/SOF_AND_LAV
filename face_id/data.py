@@ -48,7 +48,21 @@ def load_pgm(path_like):
 
 
 def preprocess_image(image, target_size=None):
-    """Resize optionally and normalize one image into [0, 1]."""
+    """Detect gray bars, crop to 64x64, resize optionally, and normalize."""
+    # 1. Detect and crop gray bars (from 64x72 to 64x64)
+    if image.shape == (64, 72):
+        left_side = image[:, :8]
+        right_side = image[:, -8:]
+        
+        # The gray bar usually has very low variance (uniform color)
+        if np.var(left_side) < np.var(right_side):
+            # Gray bar is on the left
+            image = image[:, 8:]
+        else:
+            # Gray bar is on the right
+            image = image[:, :64]
+
+    # 2. Resizing logic
     if target_size is None or tuple(target_size) == tuple(image.shape):
         resized = image.astype(np.float32)
     else:
@@ -61,12 +75,14 @@ def preprocess_image(image, target_size=None):
         cols = np.clip(cols, 0, width - 1)
         resized = image[np.ix_(rows, cols)].astype(np.float32)
 
-    min_value = float(resized.min())
-    max_value = float(resized.max())
-    if max_value > min_value:
-        resized = (resized - min_value) / (max_value - min_value)
+    # 3. Normalization logic (Z-score standardization)
+    mean_val = float(resized.mean())
+    std_val = float(resized.std())
+    if std_val > 0:
+        resized = (resized - mean_val) / std_val
     else:
-        resized = np.zeros_like(resized, dtype=np.float32)
+        resized = resized - mean_val
+
 
     return resized.astype(np.float32)
 

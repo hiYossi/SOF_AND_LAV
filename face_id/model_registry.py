@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .config import DEFAULT_COMPONENT_GRID, DEFAULT_KNN_NEIGHBORS
-from .models import knn, linear_least_squares, nearest_class_mean
+from .models import knn, linear_least_squares, nearest_class_mean, svm
 
 
 @dataclass(frozen=True)
@@ -14,6 +14,7 @@ class ModelSpec:
 
     name: str
     display_name: str
+    uses_pca: bool
     fit_fn: object
     predict_fn: object
 
@@ -22,18 +23,28 @@ MODEL_SPECS = {
     "linear_least_squares": ModelSpec(
         name="linear_least_squares",
         display_name="Linear least squares",
+        uses_pca=True,
         fit_fn=linear_least_squares.fit,
         predict_fn=linear_least_squares.predict,
     ),
     "nearest_class_mean": ModelSpec(
         name="nearest_class_mean",
         display_name="Nearest class mean",
+        uses_pca=True,
         fit_fn=nearest_class_mean.fit,
         predict_fn=nearest_class_mean.predict,
+    ),
+    "svm": ModelSpec(
+        name="svm",
+        display_name="Support Vector Machine",
+        uses_pca=True,
+        fit_fn=svm.fit,
+        predict_fn=svm.predict,
     ),
     "knn": ModelSpec(
         name="knn",
         display_name="k-NN",
+        uses_pca=False,
         fit_fn=knn.fit,
         predict_fn=knn.predict,
     ),
@@ -68,6 +79,8 @@ def available_model_names():
 def build_search_space(model_names, max_supported_components, component_grid=None,
                        knn_neighbors=None):
     """Build the hyperparameter grid for the requested model families."""
+    from .config import DEFAULT_SVM_REG_GRID, DEFAULT_SVM_EPOCHS_GRID, DEFAULT_SVM_LEARNING_RATE_GRID
+    
     model_names = normalize_model_names(model_names)
     component_grid = DEFAULT_COMPONENT_GRID if component_grid is None else component_grid
     knn_neighbors = DEFAULT_KNN_NEIGHBORS if knn_neighbors is None else knn_neighbors
@@ -89,6 +102,19 @@ def build_search_space(model_names, max_supported_components, component_grid=Non
                 {"n_components": n_components, "k": k}
                 for n_components in component_values
                 for k in neighbor_values
+            ]
+        elif model_name == "svm":
+            search_space[model_name] = [
+                {
+                    "n_components": n_components,
+                    "reg_strength": reg,
+                    "epochs": epochs,
+                    "learning_rate": lr
+                }
+                for n_components in component_values
+                for reg in DEFAULT_SVM_REG_GRID
+                for epochs in DEFAULT_SVM_EPOCHS_GRID
+                for lr in DEFAULT_SVM_LEARNING_RATE_GRID
             ]
         else:
             search_space[model_name] = [

@@ -50,10 +50,15 @@ def fit(Z_train, y_train, num_classes, hyperparams):
     regularization_mask[-1, :] = 0.0
 
     rng = np.random.default_rng(seed)
+    
+    # Adding Momentum for faster convergence
+    velocity = np.zeros_like(weights, dtype=np.float32)
+    momentum_factor = 0.9
 
     for epoch in range(epochs):
         permutation = rng.permutation(len(X))
-        step_size = learning_rate / np.sqrt(epoch + 1.0)
+        # Decay learning rate slightly
+        step_size = learning_rate / (1.0 + 0.1 * epoch)
 
         for start in range(0, len(X), batch_size):
             batch_indices = permutation[start:start + batch_size]
@@ -66,7 +71,10 @@ def fit(Z_train, y_train, num_classes, hyperparams):
             hinge_gradient = -(X_batch.T @ (Y_batch * active)) / max(len(X_batch), 1)
             regularization_gradient = reg_strength * (weights * regularization_mask)
             gradient = regularization_gradient + hinge_gradient
-            weights -= step_size * gradient
+            
+            # Momentum update rule
+            velocity = momentum_factor * velocity - step_size * gradient
+            weights += velocity
 
     return {"W": weights}
 

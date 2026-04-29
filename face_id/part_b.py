@@ -59,9 +59,6 @@ def run_part_b(dataset_path=DATASET_PATH, model_names=None, image_size=DEFAULT_I
         model_names,
         max_supported_components=min(len(X_train), X.shape[1]),
         component_grid=component_grid,
-        svm_reg_grid=svm_reg_grid,
-        svm_epochs_grid=svm_epochs_grid,
-        svm_learning_rate_grid=svm_learning_rate_grid,
         knn_neighbors=knn_neighbors,
     )
 
