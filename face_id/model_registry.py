@@ -14,7 +14,6 @@ class ModelSpec:
 
     name: str
     display_name: str
-    uses_pca: bool
     fit_fn: object
     predict_fn: object
 
@@ -23,21 +22,18 @@ MODEL_SPECS = {
     "linear_least_squares": ModelSpec(
         name="linear_least_squares",
         display_name="Linear least squares",
-        uses_pca=True,
         fit_fn=linear_least_squares.fit,
         predict_fn=linear_least_squares.predict,
     ),
     "nearest_class_mean": ModelSpec(
         name="nearest_class_mean",
         display_name="Nearest class mean",
-        uses_pca=True,
         fit_fn=nearest_class_mean.fit,
         predict_fn=nearest_class_mean.predict,
     ),
     "knn": ModelSpec(
         name="knn",
         display_name="k-NN",
-        uses_pca=False,
         fit_fn=knn.fit,
         predict_fn=knn.predict,
     ),
@@ -90,7 +86,8 @@ def build_search_space(model_names, max_supported_components, component_grid=Non
     for model_name in model_names:
         if model_name == "knn":
             search_space[model_name] = [
-                {"k": k}
+                {"n_components": n_components, "k": k}
+                for n_components in component_values
                 for k in neighbor_values
             ]
         else:
@@ -104,9 +101,6 @@ def build_search_space(model_names, max_supported_components, component_grid=Non
 
 def restrict_search_space(model_name, hyperparameter_grid, max_n_components):
     """Keep only valid PCA dimensions, with a small safe fallback if needed."""
-    if not MODEL_SPECS[model_name].uses_pca:
-        return [dict(hyperparams) for hyperparams in hyperparameter_grid]
-
     max_n_components = max(1, int(max_n_components))
     valid_grid = [
         dict(hyperparams)
@@ -115,6 +109,17 @@ def restrict_search_space(model_name, hyperparameter_grid, max_n_components):
     ]
     if valid_grid:
         return valid_grid
+
+    if model_name == "knn":
+        neighbor_values = sorted({
+            int(hyperparams["k"])
+            for hyperparams in hyperparameter_grid
+            if "k" in hyperparams
+        }) or [1]
+        return [
+            {"n_components": max_n_components, "k": k}
+            for k in neighbor_values
+        ]
 
     return [{"n_components": max_n_components}]
 

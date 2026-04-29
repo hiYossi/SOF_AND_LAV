@@ -1,0 +1,86 @@
+  Loaded cached dataset from part_d_4ece9fe764cc.npz
+======================================================================
+PART D - NESTED K-FOLD MODEL SELECTION
+======================================================================
+Samples loaded: 16004
+Classes: 28
+Models evaluated: Linear least squares, Nearest class mean, k-NN
+Outer folds: 5
+Inner folds: 3
+Smallest class size: 571
+
+  Outer fold 1/5
+    Outer train size: 12781
+    Outer test size:  3223
+    Linear least squares: starting inner-loop tuning (1/3)
+      Linear least squares: 4 settings across 3 inner folds
+      inner fold 1/3: train=8520, val=4261
+      fitting PCA for inner fold 1 with up to 80 components
+      setting 1/4 on inner fold 1: n_components=10 -> val=0.1645
+      setting 2/4 on inner fold 1: n_components=20 -> val=0.2823
+      setting 3/4 on inner fold 1: n_components=40 -> val=0.4011
+      setting 4/4 on inner fold 1: n_components=80 -> val=0.5393
+      inner fold 2/3: train=8521, val=4260
+      fitting PCA for inner fold 2 with up to 80 components
+      setting 1/4 on inner fold 2: n_components=10 -> val=0.1573
+      setting 2/4 on inner fold 2: n_components=20 -> val=0.2871
+      setting 3/4 on inner fold 2: n_components=40 -> val=0.3979
+      setting 4/4 on inner fold 2: n_components=80 -> val=0.5371
+      inner fold 3/3: train=8521, val=4260
+      fitting PCA for inner fold 3 with up to 80 components
+      setting 1/4 on inner fold 3: n_components=10 -> val=0.1641
+      setting 2/4 on inner fold 3: n_components=20 -> val=0.2742
+      setting 3/4 on inner fold 3: n_components=40 -> val=0.3988
+      setting 4/4 on inner fold 3: n_components=80 -> val=0.5232
+      mean inner score for n_components=10 = 0.1620
+      mean inner score for n_components=20 = 0.2812
+      mean inner score for n_components=40 = 0.3993
+      mean inner score for n_components=80 = 0.5332
+    Linear least squares: best inner acc=0.5332 with n_components=80
+    Nearest class mean: starting inner-loop tuning (2/3)
+      Nearest class mean: 4 settings across 3 inner folds
+      inner fold 1/3: train=8520, val=4261
+      fitting PCA for inner fold 1 with up to 80 components
+      setting 1/4 on inner fold 1: n_components=10 -> val=0.0990
+      setting 2/4 on inner fold 1: n_components=20 -> val=0.1281
+      setting 3/4 on inner fold 1: n_components=40 -> val=0.1462
+      setting 4/4 on inner fold 1: n_components=80 -> val=0.1556
+      inner fold 2/3: train=8521, val=4260
+      fitting PCA for inner fold 2 with up to 80 components
+      setting 1/4 on inner fold 2: n_components=10 -> val=0.0962
+      setting 2/4 on inner fold 2: n_components=20 -> val=0.1286
+      setting 3/4 on inner fold 2: n_components=40 -> val=0.1444
+      setting 4/4 on inner fold 2: n_components=80 -> val=0.1552
+      inner fold 3/3: train=8521, val=4260
+      fitting PCA for inner fold 3 with up to 80 components
+      setting 1/4 on inner fold 3: n_components=10 -> val=0.0885
+      setting 2/4 on inner fold 3: n_components=20 -> val=0.1204
+      setting 3/4 on inner fold 3: n_components=40 -> val=0.1322
+      setting 4/4 on inner fold 3: n_components=80 -> val=0.1451
+      mean inner score for n_components=10 = 0.0946
+      mean inner score for n_components=20 = 0.1257
+      mean inner score for n_components=40 = 0.1409
+      mean inner score for n_components=80 = 0.1519
+    Nearest class mean: best inner acc=0.1519 with n_components=80
+    k-NN: starting inner-loop tuning (3/3)
+      k-NN: 4 settings across 3 inner folds
+      inner fold 1/3: train=8520, val=4261
+      setting 1/4 on inner fold 1: k=1 -> val=0.6956
+      setting 2/4 on inner fold 1: k=3 -> val=0.6437
+      setting 3/4 on inner fold 1: k=5 -> val=0.6353
+      setting 4/4 on inner fold 1: k=7 -> val=0.6149
+      inner fold 2/3: train=8521, val=4260
+      setting 1/4 on inner fold 2: k=1 -> val=0.6979
+      setting 2/4 on inner fold 2: k=3 -> val=0.6336
+      setting 3/4 on inner fold 2: k=5 -> val=0.6366
+      setting 4/4 on inner fold 2: k=7 -> val=0.6188
+      inner fold 3/3: train=8521, val=4260
+      setting 1/4 on inner fold 3: k=1 -> val=0.6887
+      setting 2/4 on inner fold 3: k=3 -> val=0.6211
+      setting 3/4 on inner fold 3: k=5 -> val=0.6256
+      setting 4/4 on inner fold 3: k=7 -> val=0.6092
+      mean inner score for k=1 = 0.6941
+      mean inner score for k=3 = 0.6328
+      mean inner score for k=5 = 0.6325
+      mean inner score for k=7 = 0.6143
+    k-NN: best inner acc=0.6941 with k=1
