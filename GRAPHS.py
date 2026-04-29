@@ -1,10 +1,43 @@
+import argparse
 import matplotlib
 matplotlib.use('TkAgg')  # Fix for PyCharm backend issue
 import matplotlib.pyplot as plt
 import numpy as np
 
-from knn import *
-from linear_model import *
+from face_id.config import DATASET_PATH, DEFAULT_IMAGE_SIZE
+from face_id.data import load_dataset
+from face_id.metrics import accuracy_score
+from face_id.models import knn, linear_least_squares
+from face_id.pca import fit_pca, transform_pca
+from face_id.splits import train_test_split
+
+
+def show_sample_images(X, y, label_to_name, count=10, image_size=DEFAULT_IMAGE_SIZE):
+    """Display a grid of sample face images from the flattened dataset."""
+    count = min(count, len(X))
+    if count == 0:
+        print("No images available to display.")
+        return
+
+    image_shape = (64, 72) if image_size is None else tuple(image_size)
+    cols = 5
+    rows = int(np.ceil(count / cols))
+    fig, axes = plt.subplots(rows, cols, figsize=(12, 2.6 * rows))
+    axes = np.asarray(axes).reshape(-1)
+
+    for index in range(count):
+        image = X[index].reshape(image_shape)
+        axes[index].imshow(image, cmap="gray")
+        axes[index].set_title(label_to_name[int(y[index])])
+        axes[index].axis("off")
+
+    for axis in axes[count:]:
+        axis.axis("off")
+
+    fig.suptitle(f"First {count} dataset images")
+    plt.tight_layout()
+    plt.show()
+
 
 def plot_true_bias_variance(param_values, train_accs, val_accs, param_name, model_name, invert_x=False):
     """
@@ -64,11 +97,12 @@ def evaluate_knn(X_train, X_val, y_train, y_val):
     val_accs = []
 
     for k in k_values:
-        y_train_pred = predict(X_train, X_train, y_train, k=k)
-        train_acc = accuracy(y_train, y_train_pred)
+        model_state = knn.fit(X_train, y_train, num_classes=int(np.max(y_train)) + 1, hyperparams={"k": k})
+        y_train_pred, _ = knn.predict(model_state, X_train)
+        train_acc = accuracy_score(y_train, y_train_pred)
 
-        y_val_pred = predict(X_val, X_train, y_train, k=k)
-        val_acc = accuracy(y_val, y_val_pred)
+        y_val_pred, _ = knn.predict(model_state, X_val)
+        val_acc = accuracy_score(y_val, y_val_pred)
 
         train_accs.append(train_acc)
         val_accs.append(val_acc)
@@ -86,17 +120,17 @@ def evaluate_pca_ls(X_train, X_val, y_train, y_val, num_classes=28):
 
     for n in components_list:
         # Fit PCA and Linear Model on Training data
-        mean_face, components, explained_var, Z_train = fit_pca(X_train, n_components=n)
-        W = fit_linear_least_squares(Z_train, y_train, num_classes)
+        pca_state, Z_train = fit_pca(X_train, n_components=n)
+        model_state = linear_least_squares.fit(Z_train, y_train, num_classes, hyperparams={})
 
         # Predict on Training data
-        y_train_pred, _ = predict_linear(Z_train, W)
-        train_acc = accuracy_score_numpy(y_train, y_train_pred)
+        y_train_pred, _ = linear_least_squares.predict(model_state, Z_train)
+        train_acc = accuracy_score(y_train, y_train_pred)
 
         # Predict on Validation data
-        Z_val = transform_pca(X_val, mean_face, components)
-        y_val_pred, _ = predict_linear(Z_val, W)
-        val_acc = accuracy_score_numpy(y_val, y_val_pred)
+        Z_val = transform_pca(X_val, pca_state)
+        y_val_pred, _ = linear_least_squares.predict(model_state, Z_val)
+        val_acc = accuracy_score(y_val, y_val_pred)
 
         train_accs.append(train_acc)
         val_accs.append(val_acc)
@@ -108,9 +142,24 @@ def evaluate_pca_ls(X_train, X_val, y_train, y_val, num_classes=28):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Show sample face images and optionally plot model graphs.")
+    parser.add_argument("--count", type=int, default=10, help="Number of sample images to show.")
+    parser.add_argument("--graphs", action="store_true", help="Also run the bias-variance graph evaluations.")
+    args = parser.parse_args()
+
     print("Loading and preparing data...")
-    # Adjust according to how your actual load_dataset function returns values
-    X, y, label_to_name, image_paths = load_dataset(DATASET_PATH, IMAGE_SIZE)
+    max_images = None if args.graphs else args.count
+    X, y, label_to_name, image_paths = load_dataset(
+        DATASET_PATH,
+        DEFAULT_IMAGE_SIZE,
+        max_images=max_images,
+        cache_name="graphs",
+    )
+    show_sample_images(X, y, label_to_name, count=args.count, image_size=DEFAULT_IMAGE_SIZE)
+
+    if not args.graphs:
+        print("\nDisplayed sample images successfully.")
+        raise SystemExit(0)
 
     # Split into Train and Validation sets
     X_train, X_val, y_train, y_val = train_test_split(X, y, test_ratio=0.2, seed=42)

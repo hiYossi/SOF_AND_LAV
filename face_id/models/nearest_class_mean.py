@@ -1,23 +1,33 @@
-"""Nearest-class-mean classifier in PCA space."""
+"""Nearest class mean classifier in PCA space."""
 
 import numpy as np
 
 
 def fit(Z_train, y_train, num_classes, hyperparams):
-    """Compute one mean vector per class."""
+    """Fit one centroid per class."""
     del hyperparams
-    class_means = np.zeros((num_classes, Z_train.shape[1]), dtype=np.float32)
+    Z_train = np.asarray(Z_train, dtype=np.float32)
+    y_train = np.asarray(y_train, dtype=np.int32)
+    num_classes = int(num_classes)
+
+    means = np.zeros((num_classes, Z_train.shape[1]), dtype=np.float32)
     for class_index in range(num_classes):
-        mask = y_train == class_index
-        if np.any(mask):
-            class_means[class_index] = Z_train[mask].mean(axis=0)
-    return {"class_means": class_means}
+        class_vectors = Z_train[y_train == class_index]
+        if len(class_vectors) > 0:
+            means[class_index] = class_vectors.mean(axis=0)
+
+    return {"means": means}
 
 
 def predict(model_state, Z):
-    """Predict labels using Euclidean distance to the class means."""
-    distances = np.linalg.norm(
-        Z[:, np.newaxis, :] - model_state["class_means"][np.newaxis, :, :],
-        axis=2,
-    )
-    return np.argmin(distances, axis=1), -distances
+    """Predict the label of the nearest class centroid."""
+    Z = np.asarray(Z, dtype=np.float32)
+    means = model_state["means"]
+
+    sample_sq_norms = np.sum(Z * Z, axis=1, keepdims=True)
+    mean_sq_norms = np.sum(means * means, axis=1)
+    distances = sample_sq_norms + mean_sq_norms[np.newaxis, :] - 2.0 * (Z @ means.T)
+    distances = np.maximum(distances, 0.0)
+
+    scores = -distances
+    return np.argmin(distances, axis=1), scores

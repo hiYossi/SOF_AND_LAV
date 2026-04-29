@@ -11,6 +11,9 @@ from .config import (
     DEFAULT_MAX_IMAGES,
     DEFAULT_MAX_IMAGES_PER_PERSON,
     DEFAULT_KNN_NEIGHBORS,
+    DEFAULT_SVM_EPOCHS_GRID,
+    DEFAULT_SVM_LEARNING_RATE_GRID,
+    DEFAULT_SVM_REG_GRID,
     DEFAULT_VALIDATION_RATIO,
     RANDOM_SEED,
 )
@@ -25,6 +28,9 @@ def run_part_b(dataset_path=DATASET_PATH, model_names=None, image_size=DEFAULT_I
                max_images_per_person=DEFAULT_MAX_IMAGES_PER_PERSON,
                validation_ratio=DEFAULT_VALIDATION_RATIO,
                component_grid=DEFAULT_COMPONENT_GRID,
+               svm_reg_grid=DEFAULT_SVM_REG_GRID,
+               svm_epochs_grid=DEFAULT_SVM_EPOCHS_GRID,
+               svm_learning_rate_grid=DEFAULT_SVM_LEARNING_RATE_GRID,
                knn_neighbors=DEFAULT_KNN_NEIGHBORS,
                random_seed=RANDOM_SEED, use_cache=True, verbose=True):
     """Compare the supervised candidate models on one stratified validation split."""
@@ -53,6 +59,9 @@ def run_part_b(dataset_path=DATASET_PATH, model_names=None, image_size=DEFAULT_I
         model_names,
         max_supported_components=min(len(X_train), X.shape[1]),
         component_grid=component_grid,
+        svm_reg_grid=svm_reg_grid,
+        svm_epochs_grid=svm_epochs_grid,
+        svm_learning_rate_grid=svm_learning_rate_grid,
         knn_neighbors=knn_neighbors,
     )
 
@@ -74,6 +83,7 @@ def run_part_b(dataset_path=DATASET_PATH, model_names=None, image_size=DEFAULT_I
             num_classes=len(label_to_name),
             model_name=model_name,
             hyperparameter_grid=hyperparameter_grid,
+            use_pca_cache=use_cache,
         )
         results[model_name] = selection
         print(f"\n{MODEL_SPECS[model_name].display_name}")
@@ -92,7 +102,7 @@ def build_parser():
         "--models",
         nargs="+",
         default=["all"],
-        help="Model names to compare: linear_least_squares nearest_class_mean knn all",
+        help="Model names to compare: linear_least_squares svm knn all",
     )
     parser.add_argument("--image-height", type=int, default=None, help="Optional resized image height.")
     parser.add_argument("--image-width", type=int, default=None, help="Optional resized image width.")
@@ -117,6 +127,27 @@ def build_parser():
         help="PCA component counts to try.",
     )
     parser.add_argument(
+        "--svm-reg-grid",
+        type=float,
+        nargs="+",
+        default=list(DEFAULT_SVM_REG_GRID),
+        help="Regularization strengths to try for the SVM.",
+    )
+    parser.add_argument(
+        "--svm-epochs-grid",
+        type=int,
+        nargs="+",
+        default=list(DEFAULT_SVM_EPOCHS_GRID),
+        help="Epoch counts to try for the SVM.",
+    )
+    parser.add_argument(
+        "--svm-learning-rate-grid",
+        type=float,
+        nargs="+",
+        default=list(DEFAULT_SVM_LEARNING_RATE_GRID),
+        help="Learning rates to try for the SVM.",
+    )
+    parser.add_argument(
         "--knn-neighbors",
         type=int,
         nargs="+",
@@ -124,7 +155,7 @@ def build_parser():
         help="Neighbor counts to try for k-NN.",
     )
     parser.add_argument("--seed", type=int, default=RANDOM_SEED, help="Random seed.")
-    parser.add_argument("--no-cache", action="store_true", help="Disable dataset caching.")
+    parser.add_argument("--no-cache", action="store_true", help="Disable dataset and PCA caching.")
     parser.add_argument("--quiet", action="store_true", help="Reduce loader output.")
     return parser
 
@@ -141,6 +172,9 @@ def main(argv=None):
         max_images_per_person=parse_max_images_per_person(args.max_images_per_person),
         validation_ratio=args.validation_ratio,
         component_grid=args.component_grid,
+        svm_reg_grid=args.svm_reg_grid,
+        svm_epochs_grid=args.svm_epochs_grid,
+        svm_learning_rate_grid=args.svm_learning_rate_grid,
         knn_neighbors=args.knn_neighbors,
         random_seed=args.seed,
         use_cache=not args.no_cache,

@@ -63,9 +63,16 @@ def _max_components_from_grid(hyperparameter_grid):
     return max(int(hyperparams["n_components"]) for hyperparams in hyperparameter_grid)
 
 
+def _log_progress(message, verbose=True, prefix=""):
+    """Print one progress line immediately when verbose logging is enabled."""
+    if verbose:
+        print(f"{prefix}{message}", flush=True)
+
+
 def select_hyperparameters_with_validation_split(X_train, y_train, X_val, y_val,
                                                  num_classes, model_name,
-                                                 hyperparameter_grid):
+                                                 hyperparameter_grid, verbose=False,
+                                                 log_prefix="", use_pca_cache=True):
     """
     Tune one model family using a single validation split.
 
@@ -76,9 +83,25 @@ def select_hyperparameters_with_validation_split(X_train, y_train, X_val, y_val,
     max_valid_components = min(len(X_train), X_train.shape[1])
     valid_grid = restrict_search_space(model_name, hyperparameter_grid, max_valid_components)
 
+    _log_progress(
+        f"{model_spec.display_name}: trying {len(valid_grid)} hyperparameter settings "
+        f"on one validation split",
+        verbose=verbose,
+        prefix=log_prefix,
+    )
+
     if model_spec.uses_pca:
         max_requested_components = _max_components_from_grid(valid_grid)
-        pca_state, train_features = fit_pca(X_train, max_requested_components)
+        _log_progress(
+            f"preparing PCA once for validation split with up to {max_requested_components} components",
+            verbose=verbose,
+            prefix=log_prefix,
+        )
+        pca_state, train_features = fit_pca(
+            X_train,
+            max_requested_components,
+            use_cache=use_pca_cache,
+        )
         val_features = transform_pca(X_val, pca_state)
     else:
         train_features = X_train
@@ -87,7 +110,7 @@ def select_hyperparameters_with_validation_split(X_train, y_train, X_val, y_val,
     all_scores = []
     best_result = None
 
-    for hyperparams in valid_grid:
+    for setting_index, hyperparams in enumerate(valid_grid, start=1):
         if model_spec.uses_pca:
             n_components = int(hyperparams["n_components"])
             selected_train_features = train_features[:, :n_components]
@@ -112,6 +135,13 @@ def select_hyperparameters_with_validation_split(X_train, y_train, X_val, y_val,
             "validation_score": accuracy_score(y_val, y_val_pred),
         }
         all_scores.append(result)
+        _log_progress(
+            f"setting {setting_index}/{len(valid_grid)}: "
+            f"{format_hyperparams(hyperparams)} -> "
+            f"train={result['train_score']:.4f}, val={result['validation_score']:.4f}",
+            verbose=verbose,
+            prefix=log_prefix,
+        )
 
         if (
             best_result is None or
@@ -128,7 +158,8 @@ def select_hyperparameters_with_validation_split(X_train, y_train, X_val, y_val,
 
 
 def select_hyperparameters_with_inner_cv(X, y, num_classes, model_name,
-                                         hyperparameter_grid, inner_folds, seed=42):
+                                         hyperparameter_grid, inner_folds, seed=42,
+                                         verbose=False, log_prefix="", use_pca_cache=True):
     """
     Tune one model family using inner-loop stratified K-fold cross-validation.
 
@@ -152,11 +183,24 @@ def select_hyperparameters_with_inner_cv(X, y, num_classes, model_name,
         None
     )
 
-    for inner_train_idx, inner_val_idx in inner_splits:
+    _log_progress(
+        f"{model_spec.display_name}: {len(valid_grid)} settings across {inner_folds} inner folds",
+        verbose=verbose,
+        prefix=log_prefix,
+    )
+
+    for inner_fold_index, (inner_train_idx, inner_val_idx) in enumerate(inner_splits, start=1):
         X_inner_train = X[inner_train_idx]
         y_inner_train = y[inner_train_idx]
         X_inner_val = X[inner_val_idx]
         y_inner_val = y[inner_val_idx]
+
+        _log_progress(
+            f"inner fold {inner_fold_index}/{inner_folds}: "
+            f"train={len(inner_train_idx)}, val={len(inner_val_idx)}",
+            verbose=verbose,
+            prefix=log_prefix,
+        )
 
         if model_spec.uses_pca:
             inner_max_components = min(
@@ -164,13 +208,22 @@ def select_hyperparameters_with_inner_cv(X, y, num_classes, model_name,
                 len(X_inner_train),
                 X_inner_train.shape[1],
             )
-            pca_state, train_features = fit_pca(X_inner_train, inner_max_components)
+            _log_progress(
+                f"preparing PCA for inner fold {inner_fold_index} with up to {inner_max_components} components",
+                verbose=verbose,
+                prefix=log_prefix,
+            )
+            pca_state, train_features = fit_pca(
+                X_inner_train,
+                inner_max_components,
+                use_cache=use_pca_cache,
+            )
             val_features = transform_pca(X_inner_val, pca_state)
         else:
             train_features = X_inner_train
             val_features = X_inner_val
 
-        for hyperparams in valid_grid:
+        for setting_index, hyperparams in enumerate(valid_grid, start=1):
             if model_spec.uses_pca:
                 n_components = int(hyperparams["n_components"])
                 selected_train_features = train_features[:, :n_components]
@@ -190,8 +243,13 @@ def select_hyperparameters_with_inner_cv(X, y, num_classes, model_name,
                 projected_model,
                 selected_val_features,
             )
-            scores_by_key[hyperparams_to_key(hyperparams)].append(
-                accuracy_score(y_inner_val, y_inner_val_pred)
+            fold_score = accuracy_score(y_inner_val, y_inner_val_pred)
+            scores_by_key[hyperparams_to_key(hyperparams)].append(fold_score)
+            _log_progress(
+                f"setting {setting_index}/{len(valid_grid)} on inner fold {inner_fold_index}: "
+                f"{format_hyperparams(hyperparams)} -> val={fold_score:.4f}",
+                verbose=verbose,
+                prefix=log_prefix,
             )
 
     all_scores = []
@@ -205,6 +263,11 @@ def select_hyperparameters_with_inner_cv(X, y, num_classes, model_name,
             "mean_score": float(np.mean(fold_scores)),
         }
         all_scores.append(result)
+        _log_progress(
+            f"mean inner score for {format_hyperparams(hyperparams)} = {result['mean_score']:.4f}",
+            verbose=verbose,
+            prefix=log_prefix,
+        )
         if best_result is None or result["mean_score"] > best_result["mean_score"]:
             best_result = result
 
@@ -216,14 +279,18 @@ def select_hyperparameters_with_inner_cv(X, y, num_classes, model_name,
 
 
 def fit_final_model(X_train, y_train, label_to_name, model_name, hyperparams,
-                    image_size):
+                    image_size, use_pca_cache=True):
     """Retrain a selected model on the full available labeled set."""
     num_classes = len(label_to_name)
     model_spec = MODEL_SPECS[model_name]
 
     if model_spec.uses_pca:
         n_components = min(int(hyperparams["n_components"]), len(X_train), X_train.shape[1])
-        pca_state, train_features = fit_pca(X_train, n_components)
+        pca_state, train_features = fit_pca(
+            X_train,
+            n_components,
+            use_cache=use_pca_cache,
+        )
         selected_train_features = train_features[:, :n_components]
     else:
         pca_state = None
@@ -265,7 +332,7 @@ def predict_single_image_with_model(trained_model, image_path):
 
 
 def run_nested_k_fold_cv(X, y, label_to_name, model_search_space, outer_folds,
-                         inner_folds, seed=42, verbose=True):
+                         inner_folds, seed=42, verbose=True, use_pca_cache=True):
     """Run nested CV for any subset of the supported model families."""
     num_classes = len(label_to_name)
     outer_splits = stratified_k_fold_indices(y, outer_folds, seed=seed)
@@ -291,7 +358,13 @@ def run_nested_k_fold_cv(X, y, label_to_name, model_search_space, outer_folds,
             print(f"    Outer test size:  {len(outer_test_idx)}")
 
         chosen_settings = {}
-        for model_name, hyperparameter_grid in model_search_space.items():
+        for model_index, (model_name, hyperparameter_grid) in enumerate(model_search_space.items(), start=1):
+            _log_progress(
+                f"{MODEL_SPECS[model_name].display_name}: starting inner-loop tuning "
+                f"({model_index}/{len(model_search_space)})",
+                verbose=verbose,
+                prefix="    ",
+            )
             selection = select_hyperparameters_with_inner_cv(
                 X_outer_train,
                 y_outer_train,
@@ -300,6 +373,9 @@ def run_nested_k_fold_cv(X, y, label_to_name, model_search_space, outer_folds,
                 hyperparameter_grid,
                 inner_folds=inner_folds,
                 seed=seed + outer_fold_index,
+                verbose=verbose,
+                log_prefix="      ",
+                use_pca_cache=use_pca_cache,
             )
             chosen_settings[model_name] = selection
             if verbose:
@@ -326,7 +402,11 @@ def run_nested_k_fold_cv(X, y, label_to_name, model_search_space, outer_folds,
                 len(X_outer_train),
                 X_outer_train.shape[1],
             )
-            pca_state, train_features = fit_pca(X_outer_train, outer_max_components)
+            pca_state, train_features = fit_pca(
+                X_outer_train,
+                outer_max_components,
+                use_cache=use_pca_cache,
+            )
             test_features = transform_pca(X_outer_test, pca_state)
             pca_features["train"] = train_features
             pca_features["test"] = test_features
