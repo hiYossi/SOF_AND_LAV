@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .config import DEFAULT_COMPONENT_GRID, DEFAULT_KNN_NEIGHBORS
-from .models import knn, linear_least_squares, nearest_class_mean, svm
+from .models import knn, linear_least_squares, nearest_class_mean, svm, sklearn_svm
 
 
 @dataclass(frozen=True)
@@ -48,6 +48,13 @@ MODEL_SPECS = {
         fit_fn=knn.fit,
         predict_fn=knn.predict,
     ),
+    "sklearn_svm": ModelSpec(
+        name="sklearn_svm",
+        display_name="SVM (sklearn LinearSVC)",
+        uses_pca=True,
+        fit_fn=sklearn_svm.fit,
+        predict_fn=sklearn_svm.predict,
+    ),
 }
 
 
@@ -79,7 +86,7 @@ def available_model_names():
 def build_search_space(model_names, max_supported_components, component_grid=None,
                        knn_neighbors=None):
     """Build the hyperparameter grid for the requested model families."""
-    from .config import DEFAULT_SVM_REG_GRID, DEFAULT_SVM_EPOCHS_GRID, DEFAULT_SVM_LEARNING_RATE_GRID
+    from .config import DEFAULT_SVM_REG_GRID, DEFAULT_SVM_EPOCHS_GRID, DEFAULT_SVM_LEARNING_RATE_GRID, DEFAULT_SKLEARN_SVM_C_GRID
     
     model_names = normalize_model_names(model_names)
     component_grid = DEFAULT_COMPONENT_GRID if component_grid is None else component_grid
@@ -115,6 +122,12 @@ def build_search_space(model_names, max_supported_components, component_grid=Non
                 for reg in DEFAULT_SVM_REG_GRID
                 for epochs in DEFAULT_SVM_EPOCHS_GRID
                 for lr in DEFAULT_SVM_LEARNING_RATE_GRID
+            ]
+        elif model_name == "sklearn_svm":
+            search_space[model_name] = [
+                {"n_components": n_components, "C": C}
+                for n_components in component_values
+                for C in DEFAULT_SKLEARN_SVM_C_GRID
             ]
         else:
             search_space[model_name] = [

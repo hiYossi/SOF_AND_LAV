@@ -1,6 +1,7 @@
 import numpy as np
 import zipfile
 import matplotlib.pyplot as plt
+from face_id.data import preprocess_image
 
 def load_pgm(filename):
     """
@@ -95,30 +96,50 @@ def load_pgm_vector(filename):
 def get_file(p_num, i_num):
     """
     Get the file path for a specific person and image number from the train set zip.
-    
+
     Args:
         p_num (int): Person number (e.g., 27).
         i_num (int): Image number (e.g., 447).
-    
+
     Returns:
         str: The full path including zip, e.g., 'zip_name/internal/path/file.pgm'.
     """
-    zip_name = "Train Set (Labeled)-20260405T164823Z-3-001.zip"
+    from pathlib import Path
+    zip_name = Path(__file__).resolve().parent.parent / "Train Set (Labeled)-20260405T164823Z-3-001.zip"
     internal_path = f"Train Set (Labeled)/p{p_num}_i{i_num}.pgm"
     return f"{zip_name}/{internal_path}"
 
+
 if __name__ == "__main__":
-    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-    
-    # Load specific images using get_file
-    img1 = load_pgm(get_file(24, 0))
-    axes[0].imshow(img1, cmap='gray')
-    axes[0].set_title('p26_i0')
-    axes[0].axis('off')
-    
-    img2 = load_pgm(get_file(27, 0))
-    axes[1].imshow(img2, cmap='gray')
-    axes[1].set_title('p27_i0')
-    axes[1].axis('off')
-    
+
+    # (person_num, image_num) samples to display
+    SAMPLES = [(24, 0), (27, 0), (5, 0), (10, 0)]
+    n = len(SAMPLES)
+
+    fig, axes = plt.subplots(2, n, figsize=(4 * n, 8))
+    fig.suptitle("Before vs After Preprocessing", fontsize=16, fontweight="bold", y=1.01)
+
+    for col, (p_num, i_num) in enumerate(SAMPLES):
+        raw = load_pgm(get_file(p_num, i_num))
+        processed = preprocess_image(raw)
+
+        # Top row — original
+        axes[0, col].imshow(raw, cmap="gray")
+        axes[0, col].set_title(f"p{p_num}_i{i_num}\n(original {raw.shape[1]}×{raw.shape[0]})", fontsize=10)
+        axes[0, col].axis("off")
+
+        # Bottom row — preprocessed
+        axes[1, col].imshow(processed, cmap="gray")
+        axes[1, col].set_title(
+            f"preprocessed {processed.shape[1]}×{processed.shape[0]}\n"
+            f"mean={processed.mean():.2f}  std={processed.std():.2f}",
+            fontsize=9,
+        )
+        axes[1, col].axis("off")
+
+    # Row labels
+    axes[0, 0].set_ylabel("Original", fontsize=13, labelpad=10)
+    axes[1, 0].set_ylabel("Preprocessed", fontsize=13, labelpad=10)
+
+    plt.tight_layout()
     plt.show()

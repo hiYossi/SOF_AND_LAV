@@ -1,3 +1,7 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "main_structure"))
+
 import argparse
 import pandas as pd
 from face_id.config import DATASET_PATH, DEFAULT_IMAGE_SIZE

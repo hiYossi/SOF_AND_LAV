@@ -47,22 +47,97 @@ def load_pgm(path_like):
         return _read_pgm(file_obj)
 
 
+def _apply_clahe(image, clip_limit=2.0, tile_grid_size=(8, 8)):
+    """Pure-NumPy CLAHE on a uint8 grayscale image.
+
+    Divides the image into a grid of tiles, clips and redistributes each
+    tile's histogram, then bilinearly interpolates the per-tile LUTs back
+    to full resolution.
+    """
+    h, w = image.shape
+    n_tiles_y, n_tiles_x = tile_grid_size
+    n_bins = 256
+
+    tile_h = int(np.ceil(h / n_tiles_y))
+    tile_w = int(np.ceil(w / n_tiles_x))
+    clip_count = max(1, int(clip_limit * tile_h * tile_w / n_bins))
+
+    # Pad so the image divides evenly into tiles
+    pad_h = tile_h * n_tiles_y - h
+    pad_w = tile_w * n_tiles_x - w
+    padded = np.pad(image.astype(np.uint8), ((0, pad_h), (0, pad_w)), mode="reflect")
+    ph, pw = padded.shape
+
+    # Build one contrast-stretch LUT per tile
+    luts = np.zeros((n_tiles_y, n_tiles_x, n_bins), dtype=np.float32)
+    for ty in range(n_tiles_y):
+        for tx in range(n_tiles_x):
+            tile = padded[ty * tile_h:(ty + 1) * tile_h, tx * tile_w:(tx + 1) * tile_w]
+            hist = np.bincount(tile.ravel(), minlength=n_bins)
+
+            # Clip and redistribute excess uniformly
+            excess = int(np.sum(np.maximum(hist - clip_count, 0)))
+            hist = np.minimum(hist, clip_count)
+            hist += excess // n_bins
+            hist[: excess % n_bins] += 1
+
+            # CDF → normalised LUT [0, 255]
+            cdf = hist.cumsum().astype(np.float32)
+            luts[ty, tx] = np.clip(cdf / float(tile.size) * 255.0, 0, 255)
+
+    # Tile-centre coordinates (used for bilinear interpolation weights)
+    ty_centers = (np.arange(n_tiles_y) + 0.5) * tile_h
+    tx_centers = (np.arange(n_tiles_x) + 0.5) * tile_w
+
+    Y, X = np.meshgrid(np.arange(ph), np.arange(pw), indexing="ij")
+
+    # Bracketing tile indices for each pixel
+    ty0 = np.clip(np.searchsorted(ty_centers, Y, side="right") - 1, 0, n_tiles_y - 1)
+    ty1 = np.clip(ty0 + 1, 0, n_tiles_y - 1)
+    tx0 = np.clip(np.searchsorted(tx_centers, X, side="right") - 1, 0, n_tiles_x - 1)
+    tx1 = np.clip(tx0 + 1, 0, n_tiles_x - 1)
+
+    # Interpolation weights
+    denom_y = ty_centers[ty1] - ty_centers[ty0]
+    denom_x = tx_centers[tx1] - tx_centers[tx0]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        wy = np.where(denom_y > 0, (Y - ty_centers[ty0]) / denom_y, 0.0).clip(0, 1)
+        wx = np.where(denom_x > 0, (X - tx_centers[tx0]) / denom_x, 0.0).clip(0, 1)
+
+    # Look up all four surrounding LUT values (vectorised fancy indexing)
+    pv = padded  # uint8 pixel values → valid index into dim-2 of luts
+    v00 = luts[ty0, tx0, pv]
+    v01 = luts[ty0, tx1, pv]
+    v10 = luts[ty1, tx0, pv]
+    v11 = luts[ty1, tx1, pv]
+
+    result = (
+        v00 * (1 - wy) * (1 - wx)
+        + v01 * (1 - wy) * wx
+        + v10 * wy * (1 - wx)
+        + v11 * wy * wx
+    )
+
+    return np.clip(result[:h, :w], 0, 255).astype(np.uint8)
+
+
 def preprocess_image(image, target_size=None):
-    """Detect gray bars, crop to 64x64, resize optionally, and normalize."""
+    """Gray-bar crop → CLAHE → optional resize → Z-score normalization."""
     # 1. Detect and crop gray bars (from 64x72 to 64x64)
     if image.shape == (64, 72):
         left_side = image[:, :8]
         right_side = image[:, -8:]
-        
+
         # The gray bar usually has very low variance (uniform color)
         if np.var(left_side) < np.var(right_side):
-            # Gray bar is on the left
-            image = image[:, 8:]
+            image = image[:, 8:]   # gray bar on the left
         else:
-            # Gray bar is on the right
-            image = image[:, :64]
+            image = image[:, :64]  # gray bar on the right
 
-    # 2. Resizing logic
+    # 2. CLAHE — enhance local contrast on the uint8 image
+    image = _apply_clahe(image)
+
+    # 3. Resizing logic
     if target_size is None or tuple(target_size) == tuple(image.shape):
         resized = image.astype(np.float32)
     else:
@@ -75,14 +150,13 @@ def preprocess_image(image, target_size=None):
         cols = np.clip(cols, 0, width - 1)
         resized = image[np.ix_(rows, cols)].astype(np.float32)
 
-    # 3. Normalization logic (Z-score standardization)
+    # 4. Z-score normalization
     mean_val = float(resized.mean())
     std_val = float(resized.std())
     if std_val > 0:
         resized = (resized - mean_val) / std_val
     else:
         resized = resized - mean_val
-
 
     return resized.astype(np.float32)
 

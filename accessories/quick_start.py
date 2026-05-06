@@ -15,7 +15,7 @@ import re
 # FAST CONFIGURATION
 # ============================================================================
 
-DATASET_PATH = "Train Set (Labeled)-20260405T164823Z-3-001.zip"
+DATASET_PATH = str(Path(__file__).resolve().parent.parent / "Train Set (Labeled)-20260405T164823Z-3-001.zip")
 IMAGE_SIZE = None                  # Preserve original image size
 N_COMPONENTS = 50                  # Fewer components = faster
 TEST_RATIO = 0.2

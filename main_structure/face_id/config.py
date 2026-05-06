@@ -3,7 +3,7 @@
 from pathlib import Path
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DATASET_PATH = PROJECT_ROOT / "Train Set (Labeled)-20260405T164823Z-3-001.zip"
 CACHE_DIR = PROJECT_ROOT / ".cache"
 
@@ -22,3 +22,18 @@ DEFAULT_SVM_EPOCHS_GRID = (20, 50)
 DEFAULT_SVM_LEARNING_RATE_GRID = (0.1, 0.2)
 DEFAULT_KNN_NEIGHBORS = (1, 3, 5,)
 DEFAULT_KNN_BATCH_SIZE = 128
+DEFAULT_SKLEARN_SVM_C_GRID = (0.01, 0.1, 1.0, 10.0)
+
+# ── Best hyperparameters from Part B (full dataset, 16 004 images, CLAHE) ────
+# k-NN  — val acc 94.15 %
+BEST_KNN_K            = 1
+BEST_KNN_N_COMPONENTS = 50
+
+# Linear Least Squares — val acc 87.51 %
+BEST_LINEAR_LS_N_COMPONENTS = 363
+
+# SVM  — val acc 89.51 %
+BEST_SVM_N_COMPONENTS  = 363
+BEST_SVM_EPOCHS        = 50
+BEST_SVM_LEARNING_RATE = 0.1
+BEST_SVM_REG_STRENGTH  = 1e-2
